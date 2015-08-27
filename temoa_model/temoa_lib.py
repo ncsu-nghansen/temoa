@@ -254,11 +254,12 @@ def CreateCapacityFactors ( M ):
 	processes  = set( (t, v) for i, t, v, o in M.Efficiency.sparse_iterkeys() )
 
 	all_cfs = set(
-	  (s, d, t, v)
+	  (s, d, l, t, v)
 
-	  for s, d, (t, v) in cross_product(
+	  for s, d, l, (t, v) in cross_product(
 	    M.time_season,
 	    M.time_of_day,
+	    M.location
 	    processes
 	  )
 	)
@@ -275,8 +276,8 @@ def CreateCapacityFactors ( M ):
 
 	if unspecified_cfs:
 		CFP._constructed = False
-		for s, d, t, v in unspecified_cfs:
-			CFP[s, d, t, v] = M.CapacityFactorTech[s, d, t]
+		for s, d, l, t, v in unspecified_cfs:
+			CFP[s, d, l, t, v] = M.CapacityFactorTech[s, d, l, t]
 		CFP._constructed = True
 
 
@@ -396,7 +397,7 @@ def CreateDemands ( M ):
 	   (i for i in DSD.sparse_iterkeys()) ))
 	unset_demand_distributions = used_dems.difference( demands_specified )
 	unset_distributions = set(
-	   cross_product(M.time_season, M.time_of_day, unset_demand_distributions))
+	   cross_product(M.time_season, M.time_of_day, M.location, unset_demand_distributions))
 
 	if unset_distributions:
 		# Some hackery because Pyomo thinks that this Param is constructed.
@@ -404,8 +405,8 @@ def CreateDemands ( M ):
 		# targeting values that have not yet been constructed, that we know are
 		# valid, and that we will need.
 		DSD._constructed = False
-		for s, d, dem in unset_distributions:
-			DSD[s, d, dem] = DDD[s, d]
+		for s, d, l, dem in unset_distributions:
+			DSD[s, d, l, dem] = DDD[s, d]
 		DSD._constructed = True
 
 	# Step 5
@@ -535,8 +536,10 @@ g_processInputs  = dict()
 g_processOutputs = dict()
 g_processVintages = dict()
 g_processLoans = dict()
-g_activeFlow_psditvo = None
+g_activeFlow_psdlitvo = None
+g_activeFlow_pltv = None
 g_activeActivity_ptv = None
+g_activeActivity_ltv
 g_activeCapacity_tv = None
 g_activeCapacityAvailable_pt = None
 
@@ -545,8 +548,10 @@ def InitializeProcessParameters ( M ):
 	global g_processOutputs
 	global g_processVintages
 	global g_processLoans
-	global g_activeFlow_psditvo
+	global g_activeFlow_psdlitvo
+	global g_activeFlow_pltv
 	global g_activeActivity_ptv
+	global g_activeCapacity_ltv
 	global g_activeCapacity_tv
 	global g_activeCapacityAvailable_pt
 
@@ -619,8 +624,8 @@ def InitializeProcessParameters ( M ):
 		for i in sorted( l_unused_techs ):
 			SE.write( msg.format( i ))
 
-	g_activeFlow_psditvo = set(
-	  (p, s, d, i, t, v, o)
+	g_activeFlow_psdlitvo = set(
+	  (p, s, d, l, i, t, v, o)
 
 	  for p in M.time_optimize
 	  for t in M.tech_all
@@ -629,19 +634,36 @@ def InitializeProcessParameters ( M ):
 	  for o in ProcessOutputs( p, t, v )
 	  for s in M.time_season
 	  for d in M.time_of_day
+	  for l in M.location
 	)
 
-	g_activeActivity_ptv = set(
-	  (p, t, v)
+	g_activeActivity_pltv = set(
+	  (p, l, t, v)
 
 	  for p in M.time_optimize
+	  for l in M.location
 	  for t in M.tech_all
 	  for v in ProcessVintages( p, t )
+	)
+	d_activeCapacity_ptv = set(
+	  (p, t, v)
+	  
+	  for p in M.time_optimize
+	  for t in M.tech_all
+	  for v in ProcessVintages(p, t)
 	)
 	g_activeCapacity_tv = set(
 	  (t, v)
 
 	  for p in M.time_optimize
+	  for t in M.tech_all
+	  for v in ProcessVintages( p, t )
+	)
+	g_activeCapacity_ltv = set(
+	  (l, t, v)
+
+	  for p in M.time_optimize
+	  for l in M.location
 	  for t in M.tech_all
 	  for v in ProcessVintages( p, t )
 	)
@@ -667,11 +689,12 @@ def InitializeProcessParameters ( M ):
 
 def CapacityFactorProcessIndices ( M ):
 	indices = set(
-	  (s, d, t, v)
+	  (s, d, l, t, v)
 
 	  for i, t, v, o in M.Efficiency.sparse_iterkeys()
 	  for s in M.time_season
 	  for d in M.time_of_day
+	  for l in M.location
 	)
 
 	return indices
@@ -679,9 +702,9 @@ def CapacityFactorProcessIndices ( M ):
 
 def CapacityFactorTechIndices ( M ):
 	indices = set(
-	  (s, d, t)
+	  (s, d, l, t)
 
-	  for s, d, t, v in M.CapacityFactor_sdtv
+	  for s, d, l, t, v in M.CapacityFactor_sdltv
 	)
 
 	return indices
@@ -816,22 +839,23 @@ CostInvest parameter.
 # Variables
 
 def CapacityVariableIndices ( M ):
-	return g_activeCapacity_tv
+	return g_activeCapacity_ltv
 
 def CapacityAvailableVariableIndices ( M ):
 	return g_activeCapacityAvailable_pt
 
 def FlowVariableIndices ( M ):
-	return g_activeFlow_psditvo
+	return g_activeFlow_psdlitvo
 
 
 def ActivityVariableIndices ( M ):
 	activity_indices = set(
-	  (p, s, d, t, v)
+	  (p, s, d, l, t, v)
 
-	  for p, t, v in g_activeActivity_ptv
+	  for p, l, t, v in g_activeActivity_pltv
 	  for s in M.time_season
 	  for d in M.time_of_day
+	  for l in M.location
 	)
 
 	return activity_indices
@@ -839,6 +863,9 @@ def ActivityVariableIndices ( M ):
 
 def ActivityByPeriodAndProcessVarIndices ( M ):
 	return g_activeActivity_ptv
+
+def ActivityByPeriodLocationAndProcessVarIndices( M ):
+	return g_activeActivity_pltv
 
 
 # End variables
@@ -852,10 +879,10 @@ def DemandActivityConstraintIndices ( M ):
 	indices = set()
 
 	dem_slices = dict()
-	for p, s, d, dem in M.DemandConstraint_psdc:
+	for p, s, d, l, dem in M.DemandConstraint_psdc:
 		if (p, dem) not in dem_slices:
 			dem_slices[p, dem] = set()
-		dem_slices[p, dem].add( (s, d) )
+		dem_slices[p, dem].add( (s, d, l) )
 
 	for (p, dem), slices in dem_slices.iteritems():
 		# No need for this constraint if demand is only in one slice.
@@ -863,12 +890,12 @@ def DemandActivityConstraintIndices ( M ):
 		slices = sorted( slices )
 		first = slices[0]
 		tmp = set(
-		  (p, s, d, t, v, dem, first[0], first[1])
+		  (p, s, d, l, t, v, dem, first[0], first[1])
 
-		  for Fp, Fs, Fd, i, t, v, Fo in M.V_FlowOut.iterkeys()
+		  for Fp, Fs, Fd, Fl, i, t, v, Fo in M.V_FlowOut.iterkeys()
 		  if Fp == p and Fo == dem
 		  for s, d in slices[1:]
-		  if Fs == s and Fd == d
+		  if Fs == s and Fd == d and Fl == l
 		)
 		indices.update( tmp )
 
@@ -879,18 +906,19 @@ def DemandConstraintIndices ( M ):
 	used_dems = set(dem for p, dem in M.Demand.sparse_iterkeys())
 	DSD_keys = M.DemandSpecificDistribution.sparse_keys()
 	dem_slices = { dem : set(
-	    (s, d)
+	    (s, d, l)
 	    for s in M.time_season
 	    for d in M.time_of_day
-	    if (s, d, dem) in DSD_keys )
+	    for l in M.location
+	    if (s, d, l, dem) in DSD_keys )
 	  for dem in used_dems
 	}
 
 	indices = set(
-	  (p, s, d, dem)
+	  (p, s, d, l, dem)
 
-	  for p, dem in M.Demand.sparse_iterkeys()
-	  for s, d in dem_slices[ dem ]
+	  for p, l, dem in M.Demand.sparse_iterkeys()
+	  for s, d, l in dem_slices[ dem ]
 	)
 
 	return indices
@@ -898,13 +926,14 @@ def DemandConstraintIndices ( M ):
 
 def BaseloadDiurnalConstraintIndices ( M ):
 	indices = set(
-	  (p, s, d, t, v)
+	  (p, s, d, l, t, v)
 
 	  for p in M.time_optimize
 	  for t in M.tech_baseload
 	  for v in ProcessVintages( p, t )
 	  for s in M.time_season
 	  for d in M.time_of_day
+	  for l in M.location
 	)
 
 	return indices
@@ -912,7 +941,7 @@ def BaseloadDiurnalConstraintIndices ( M ):
 
 def CommodityBalanceConstraintIndices ( M ):
 	indices = set(
-	  (p, s, d, o)
+	  (p, s, d, l, o)
 
 	  for p in M.time_optimize
 	  for t in M.tech_all
@@ -921,6 +950,7 @@ def CommodityBalanceConstraintIndices ( M ):
 	  for o in ProcessOutputsByInput( p, t, v, i )
 	  for s in M.time_season
 	  for d in M.time_of_day
+	  for l in M.location
 	)
 
 	return indices
@@ -928,7 +958,7 @@ def CommodityBalanceConstraintIndices ( M ):
 
 def ProcessBalanceConstraintIndices ( M ):
 	indices = set(
-	  (p, s, d, i, t, v, o)
+	  (p, s, d, l, i, t, v, o)
 
 	  for p in M.time_optimize
 	  for t in M.tech_all
@@ -938,6 +968,7 @@ def ProcessBalanceConstraintIndices ( M ):
 	  for o in ProcessOutputsByInput( p, t, v, i )
 	  for s in M.time_season
 	  for d in M.time_of_day
+	  for l in M.location
 	)
 
 	return indices
@@ -960,13 +991,14 @@ def StorageConstraintIndices ( M ):
 
 def TechInputSplitConstraintIndices ( M ):
 	indices = set(
-	  (p, s, d, i, t, v)
+	  (p, s, d, l, i, t, v)
 
 	  for i, t in M.TechInputSplit.sparse_iterkeys()
 	  for p in M.time_optimize
 	  for v in ProcessVintages( p, t )
 	  for s in M.time_season
 	  for d in M.time_of_day
+	  for l in M.location
 	)
 
 	return indices
@@ -974,13 +1006,14 @@ def TechInputSplitConstraintIndices ( M ):
 
 def TechOutputSplitConstraintIndices ( M ):
 	indices = set(
-	  (p, s, d, t, v, o)
+	  (p, s, d, l, t, v, o)
 
 	  for t, o in M.TechOutputSplit.sparse_iterkeys()
 	  for p in M.time_optimize
 	  for v in ProcessVintages( p, t )
 	  for s in M.time_season
 	  for d in M.time_of_day
+	  for l in M.location
 	)
 
 	return indices
@@ -1095,8 +1128,8 @@ def ProcessVintages ( p, t ):
 	return set()
 
 
-def ValidActivity ( p, t, v ):
-	return (p, t, v) in g_activeActivity_ptv
+def ValidActivity ( p, l, t, v ):
+	return (p, l, t, v) in g_activeActivity_pltv
 
 
 def ValidCapacity ( t, v ):

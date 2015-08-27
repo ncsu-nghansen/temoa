@@ -85,7 +85,7 @@ def PeriodCost_rule ( M, p ):
 	x   = 1 + GDR    # convenience variable, nothing more.
 
 	loan_costs = sum(
-	    M.V_Capacity[S_t, S_v]
+	    M.V_Capacity[S_l, S_t, S_v]
 	  * (
 	      value( M.CostInvest[S_t, S_v] )
 	    * value( M.LoanAnnualize[S_t, S_v] )
@@ -95,11 +95,12 @@ def PeriodCost_rule ( M, p ):
 	  )
 
 	  for S_t, S_v in M.CostInvest.sparse_iterkeys()
+	  for S_l in M.location
 	  if S_v == p
 	)
 
 	fixed_costs = sum(
-	    M.V_Capacity[S_t, S_v]
+	    M.V_Capacity[S_l, S_t, S_v]
 	  * (
 	      value( M.CostFixed[p, S_t, S_v] )
 	    * ( value( MPL[p, S_t, S_v] ) if not GDR else
@@ -108,17 +109,19 @@ def PeriodCost_rule ( M, p ):
 	    )
 
 	  for S_p, S_t, S_v in M.CostFixed.sparse_iterkeys()
+	  for S_l in M.location
 	  if S_p == p
 	)
 
 	variable_costs = sum(
 	    M.V_ActivityByPeriodAndProcess[p, S_t, S_v]
 	  * (
-	      value( M.CostVariable[p, S_t, S_v] )
+	      value( M.CostVariable[p, l, S_t, S_v] )
 	    * value( M.PeriodRate[ p ] )
 	  )
 
 	  for S_p, S_t, S_v in M.CostVariable.sparse_iterkeys()
+	  for S_l in M.location
 	  if S_p == p
 	)
 
@@ -213,7 +216,7 @@ def ParamLoanAnnualize_rule ( M, t, v ):
 ##############################################################################
 #   Constraint rules
 
-def BaseloadDiurnal_Constraint ( M, p, s, d, t, v ):
+def BaseloadDiurnal_Constraint ( M, p, s, d, l, t, v ):
 	r"""
 There exists within the electric sector a class of technologies whose
 thermodynamic properties are impossible to change over a short period of time
@@ -268,9 +271,9 @@ functionality is currently on the Temoa TODO list.
 	#   computationally, however, multiplication is cheaper than division, so:
 	#       (ActA * SegB) == (ActB * SegA)
 	expr = (
-	    M.V_Activity[p, s, d, t, v]   * M.SegFrac[s, d_0]
+	    M.V_Activity[p, s, d, l, t, v]   * M.SegFrac[s, d_0]
 	 ==
-	    M.V_Activity[p, s, d_0, t, v] * M.SegFrac[s, d]
+	    M.V_Activity[p, s, d_0, l, t, v] * M.SegFrac[s, d]
 	)
 	return expr
 
@@ -299,7 +302,7 @@ to each emission commodity.
 	emission_limit = M.EmissionLimit[p, e]
 
 	actual_emissions = sum(
-	    M.V_FlowOut[p, S_s, S_d, S_i, S_t, S_v, S_o]
+	    M.V_FlowOut[p, S_s, S_d, S_l, S_i, S_t, S_v, S_o]
 	  * M.EmissionActivity[e, S_i, S_t, S_v, S_o]
 
 	  for tmp_e, S_i, S_t, S_v, S_o in M.EmissionActivity.sparse_iterkeys()
@@ -307,6 +310,7 @@ to each emission commodity.
 	  if ValidActivity( p, S_t, S_v )
 	  for S_s in M.time_season
 	  for S_d in M.time_of_day
+	  for S_l in M.location
 	)
 
 	if int is type( actual_emissions ):
@@ -426,17 +430,17 @@ the model. Currently, each slice is completely independent of other slices.
 	return expr
 
 
-def TechInputSplit_Constraint ( M, p, s, d, i, t, v ):
+def TechInputSplit_Constraint ( M, p, s, d, l, i, t, v ):
 	r"""
 
 Some processes make a single output from multiple inputs.  A subset of these
 processes have a constant ratio of inputs.  See TechOutputSplit_Constraint for
 the analogous math reasoning.
 """
-	inp = sum( M.V_FlowIn[p, s, d, i, t, v, S_o]
+	inp = sum( M.V_FlowIn[p, s, d, l, i, t, v, S_o]
 	  for S_o in ProcessOutputsByInput( p, t, v, i ) )
 
-	total_inp = sum( M.V_FlowIn[p, s, d, S_i, t, v, S_o]
+	total_inp = sum( M.V_FlowIn[p, s, d, l, S_i, t, v, S_o]
 	  for S_i in ProcessInputs( p, t, v )
 	  for S_o in ProcessOutputsByInput( p, t, v, i )
 	)
@@ -445,7 +449,7 @@ the analogous math reasoning.
 	return expr
 
 
-def TechOutputSplit_Constraint ( M, p, s, d, t, v, o ):
+def TechOutputSplit_Constraint ( M, p, s, d, l, t, v, o ):
 	r"""
 
 Some processes take a single input and make multiple outputs.  A subset of
@@ -479,14 +483,14 @@ In constraint in set notation is:
 
    \forall \{p, s, d, t, v, o\} \in \Theta_{\text{split output}}
 """
-	out = sum( M.V_FlowOut[p, s, d, S_i, t, v, o]
+	out = sum( M.V_FlowOut[p, s, d, l, S_i, t, v, o]
 	  for S_i in ProcessInputsByOutput( p, t, v, o ) )
 
-	expr = ( out == M.TechOutputSplit[t, o] * M.V_Activity[p, s, d, t, v] )
+	expr = ( out == M.TechOutputSplit[t, o] * M.V_Activity[p, s, d, l, t, v] )
 	return expr
 
 
-def Activity_Constraint ( M, p, s, d, t, v ):
+def Activity_Constraint ( M, p, s, d, l, t, v ):
 	r"""
 The Activity constraint defines the Activity convenience variable.  The Activity
 variable is mainly used in the objective function to calculate the cost
@@ -510,17 +514,17 @@ accounting exercise for the modeler.
    \forall \{p, s, d, t, v\} \in \Theta_{\text{activity}}
 """
 	activity = sum(
-	  M.V_FlowOut[p, s, d, S_i, t, v, S_o]
+	  M.V_FlowOut[p, s, d, l, S_i, t, v, S_o]
 
 	  for S_i in ProcessInputs( p, t, v )
 	  for S_o in ProcessOutputsByInput( p, t, v, S_i )
 	)
 
-	expr = ( M.V_Activity[p, s, d, t, v] == activity )
+	expr = ( M.V_Activity[p, s, d, l, t, v] == activity )
 	return expr
 
 
-def Capacity_Constraint ( M, p, s, d, t, v ):
+def Capacity_Constraint ( M, p, s, d, l, t, v ):
 	r"""
 
 Temoa's definition of a process' capacity is the total size of installation
@@ -546,18 +550,18 @@ slice ``<s``,\ ``d>``.
    \forall \{p, s, d, t, v\} \in \Theta_{\text{activity}}
 """
 	produceable = (
-	  (   value( M.CapacityFactorProcess[s, d, t, v] )
+	  (   value( M.CapacityFactorProcess[s, d, l, t, v] )
 	    * value( M.CapacityToActivity[ t ] )
 	    * value( M.SegFrac[s, d]) )
 	    * value( M.ProcessLifeFrac[p, t, v] )
-	  * M.V_Capacity[t, v]
+	  * M.V_Capacity[l, t, v]
 	)
 
-	expr = (produceable >= M.V_Activity[p, s, d, t, v])
+	expr = (produceable >= M.V_Activity[p, s, d, l, t, v])
 	return expr
 
 
-def ExistingCapacity_Constraint ( M, t, v ):
+def ExistingCapacity_Constraint ( M, l, t, v ):
 	r"""
 
 Temoa treats residual capacity from before the model's optimization horizon as
@@ -574,7 +578,7 @@ user-specified values.
 
    \forall \{t, v\} \in \Theta_{\text{existing}}
 """
-	expr = ( M.V_Capacity[t, v] == M.ExistingCapacity[t, v] )
+	expr = ( M.V_Capacity[l, t, v] == M.ExistingCapacity[l, t, v] )
 	return expr
 
 
@@ -592,20 +596,21 @@ the amount of a particular resource Temoa may use in a period.
    \forall \{p, c\} \in \Theta_{\text{resource bound parameter}}
 """
 	collected = sum(
-	  M.V_FlowOut[p, S_s, S_d, S_i, S_t, S_v, r]
+	  M.V_FlowOut[p, S_s, S_d, S_l, S_i, S_t, S_v, r]
 
 	  for S_t, S_v in ProcessesByPeriodAndOutput( p, r )
 	  if S_t in M.tech_resource
 	  for S_i in ProcessInputsByOutput( p, S_t, S_v, r )
 	  for S_s in M.time_season
 	  for S_d in M.time_of_day
+	  for S_l in M.location
 	)
 
 	expr = (collected <= M.ResourceBound[p, r])
 	return expr
 
 
-def CommodityBalance_Constraint ( M, p, s, d, c ):
+def CommodityBalance_Constraint ( M, p, s, d, l, c ):
 	r"""
 
 Where the Demand constraint :eq:`Demand` ensures that end-use demands are met,
@@ -630,7 +635,7 @@ Demand :eq:`Demand` constraints.
 		return Constraint.Skip
 
 	vflow_in = sum(
-	  M.V_FlowIn[p, s, d, c, S_t, S_v, S_o]
+	  M.V_FlowIn[p, s, d, l, c, S_t, S_v, S_o]
 
 	  for S_t in M.tech_production
 	  for S_v in M.vintage_all
@@ -638,7 +643,7 @@ Demand :eq:`Demand` constraints.
 	)
 
 	vflow_out = sum(
-	  M.V_FlowOut[p, s, d, S_i, S_t, S_v, c]
+	  M.V_FlowOut[p, s, d, l, S_i, S_t, S_v, c]
 
 	  for S_t in M.tech_all
 	  for S_v in M.vintage_all
@@ -651,7 +656,7 @@ Demand :eq:`Demand` constraints.
 	return expr
 
 
-def ProcessBalance_Constraint ( M, p, s, d, i, t, v, o ):
+def ProcessBalance_Constraint ( M, p, s, d, l, i, t, v, o ):
 	r"""
 
 The ProcessBalance constraint is one of the most fundamental constraints in the
@@ -682,16 +687,16 @@ one input data anomaly.
    \forall \{p, s, d, i, t, v, o\} \in \Theta_{\text{valid process flows}}
 """
 	expr = (
-	    M.V_FlowOut[p, s, d, i, t, v, o]
+	    M.V_FlowOut[p, s, d, l, i, t, v, o]
 	      <=
-	    M.V_FlowIn[p, s, d, i, t, v, o]
+	    M.V_FlowIn[p, s, d, l, i, t, v, o]
 	  * value( M.Efficiency[i, t, v, o] )
 	)
 
 	return expr
 
 
-def DemandActivity_Constraint ( M, p, s, d, t, v, dem, s_0, d_0 ):
+def DemandActivity_Constraint ( M, p, s, d, l, t, v, dem, s_0, d_0 ):
 	r"""
 
 For end-use demands, it is unreasonable to let the optimizer only allow use in a
@@ -719,25 +724,25 @@ slice and demand.  This is transparently handled by the :math:`\Theta` superset.
 
 	DSD = M.DemandSpecificDistribution   # lazy programmer
 	act_a = sum(
-	  M.V_FlowOut[p, s_0, d_0, S_i, t, v, dem]
+	  M.V_FlowOut[p, s_0, d_0, l, S_i, t, v, dem]
 
 	  for S_i in ProcessInputsByOutput( p, t, v, dem )
 	)
 	act_b = sum(
-	  M.V_FlowOut[p, s, d, S_i, t, v, dem]
+	  M.V_FlowOut[p, s, d, l, S_i, t, v, dem]
 
 	  for S_i in ProcessInputsByOutput( p, t, v, dem )
 	)
 
 	expr = (
-	  act_a * DSD[s, d, dem]
+	  act_a * DSD[s, d, l, dem]
 	     ==
-	  act_b * DSD[s_0, d_0, dem]
+	  act_b * DSD[s_0, d_0, l, dem]
 	)
 	return expr
 
 
-def Demand_Constraint ( M, p, s, d, dem ):
+def Demand_Constraint ( M, p, s, d, l, dem ):
 	r"""
 
 The Demand constraint drives the model.  This constraint ensures that supply at
@@ -769,7 +774,7 @@ could be more tightly specified and could have at least one input data anomaly.
 
 """
 	supply = sum(
-	  M.V_FlowOut[p, s, d, S_i, S_t, S_v, dem]
+	  M.V_FlowOut[p, s, d, l, S_i, S_t, S_v, dem]
 
 	  for S_t in M.tech_all
 	  for S_v in M.vintage_all
@@ -778,7 +783,7 @@ could be more tightly specified and could have at least one input data anomaly.
 
 	DemandConstraintErrorCheck( supply, p, s, d, dem )
 
-	expr = (supply >= M.Demand[p, dem] * M.DemandSpecificDistribution[s, d, dem])
+	expr = (supply >= M.Demand[p, l, dem] * M.DemandSpecificDistribution[s, d, l, dem])
 
 	return expr
 
@@ -814,10 +819,11 @@ def ActivityByPeriodAndProcess_Constraint ( M, p, t, v ):
 		return Constraint.Skip
 
 	activity = sum(
-	  M.V_Activity[p, S_s, S_d, t, v]
+	  M.V_Activity[p, S_s, S_d, S_l, t, v]
 
 	  for S_s in M.time_season
 	  for S_d in M.time_of_day
+	  for S_l in M.location
 	)
 
 	if int is type( activity ):
@@ -830,11 +836,12 @@ def ActivityByPeriodAndProcess_Constraint ( M, p, t, v ):
 def ActivityByTech_Constraint ( M, t ):
 
 	activity = sum(
-	  M.V_Activity[S_p, S_s, S_d, t, S_v]
+	  M.V_Activity[S_p, S_s, S_d, S_l, t, S_v]
 
 	  for S_p in M.time_optimize
 	  for S_s in M.time_season
 	  for S_d in M.time_of_day
+	  for S_l in M.location
 	  for S_v in ProcessVintages( S_p, t )
 	)
 
@@ -868,9 +875,10 @@ available for use throughout the period.
 """
 	cap_avail = sum(
 	    value( M.ProcessLifeFrac[p, t, S_v] )
-	  * M.V_Capacity[t, S_v]
+	  * M.V_Capacity[S_l, t, S_v]
 
 	  for S_v in ProcessVintages( p, t )
+	  for S_l in M.location
 	)
 
 	expr = (M.V_CapacityAvailableByPeriodAndTech[p, t] == cap_avail)
@@ -878,12 +886,13 @@ available for use throughout the period.
 
 def EnergyConsumptionByPeriodInputAndTech_Constraint ( M, p, i, t ):
 	energy_used = sum(
-	   M.V_FlowIn[p, S_s, S_d, i, t, S_v, S_o]
+	   M.V_FlowIn[p, S_s, S_d, S_l, i, t, S_v, S_o]
 
 	   for S_v in ProcessVintages( p, t )
 	   for S_o in ProcessOutputsByInput( p, t, S_v, i )
 	   for S_s in M.time_season
 	   for S_d in M.time_of_day
+	   for S_l in M.location
 	)
 
 	expr = (M.V_EnergyConsumptionByPeriodInputAndTech[p, i, t] == energy_used)
@@ -891,12 +900,13 @@ def EnergyConsumptionByPeriodInputAndTech_Constraint ( M, p, i, t ):
 	
 def ActivityByPeriodTechAndOutput_Constraint ( M, p, t, o ):
 	activity = sum(
-	   M.V_FlowOut[p, S_s, S_d, S_i, t, S_v, o]
+	   M.V_FlowOut[p, S_s, S_d, S_l, S_i, t, S_v, o]
 
 	   for S_v in ProcessVintages( p, t )
 	   for S_i in ProcessInputsByOutput( p, t, S_v, o )
 	   for S_s in M.time_season
 	   for S_d in M.time_of_day
+	   for S_l in M.location
 	)
 
 	if int is type( activity ):
@@ -907,7 +917,7 @@ def ActivityByPeriodTechAndOutput_Constraint ( M, p, t, o ):
 	
 def EmissionActivityByPeriodAndTech_Constraint ( M, e, p, t ):
 	emission_total = sum(
-	   M.V_FlowOut[p, S_s, S_d, S_i, t, S_v, S_o]
+	   M.V_FlowOut[p, S_s, S_d, S_l, S_i, t, S_v, S_o]
 	   * M.EmissionActivity[e, S_i, t, S_v, S_o]
 
 	   for tmp_e, S_i, S_t, S_v, S_o in M.EmissionActivity.sparse_iterkeys()
@@ -915,6 +925,7 @@ def EmissionActivityByPeriodAndTech_Constraint ( M, e, p, t ):
 	   if ValidActivity( p, S_t, S_v )
 	   for S_s in M.time_season
 	   for S_d in M.time_of_day
+	   for S_l in M.location
 	)
 
 	if type( emission_total ) is int:

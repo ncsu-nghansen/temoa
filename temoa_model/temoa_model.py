@@ -50,6 +50,7 @@ def temoa_create_model ( name='The Temoa Energy System Model' ):
     
     M.time_season     = Set()
     M.time_of_day     = Set()
+    M.location		  = Set()
     
     M.tech_resource   = Set()
     M.tech_production = Set()
@@ -91,10 +92,11 @@ def temoa_create_model ( name='The Temoa Energy System Model' ):
     M.Efficiency = Param( M.commodity_physical, M.tech_all, M.vintage_all, 
     		              M.commodity_carrier )
     M.validate_UsedEfficiencyIndices = BuildAction( rule=CheckEfficiencyIndices )   
-    M.CapacityFactor_sdtv = Set( dimen=4, initialize=CapacityFactorProcessIndices )
-    M.CapacityFactorProcess = Param( M.CapacityFactor_sdtv )
-    M.CapacityFactor_sdt  = Set( dimen=3, initialize=CapacityFactorTechIndices )
-    M.CapacityFactorTech    = Param( M.CapacityFactor_sdt, default=1 )
+    #M.CapacityFactor_sdtv = Set( dimen=4, initialize=CapacityFactorProcessIndices )
+    M.CapacityFactor_sdrtv = Set( dimen=5, initialize=CapacityFactorProcessIndicies )
+    M.CapacityFactorProcess = Param( M.CapacityFactor_sdrtv )
+    M.CapacityFactor_sdrt  = Set( dimen=4, initialize=CapacityFactorTechIndices )
+    M.CapacityFactorTech    = Param( M.CapacityFactor_sdrt, default=1 )
     M.initialize_CapacityFactors = BuildAction( rule=CreateCapacityFactors )
     M.LifetimeTech           = Param( M.tech_all, default=30 )    # in years
     M.LifetimeLoanTech       = Param( M.tech_all, default=10 )    # in years
@@ -112,9 +114,9 @@ def temoa_create_model ( name='The Temoa Energy System Model' ):
     M.initialize_ProcessParameters = BuildAction( rule=InitializeProcessParameters )
     
     M.DemandDefaultDistribution  = Param( M.time_season, M.time_of_day )
-    M.DemandSpecificDistribution = Param( M.time_season, M.time_of_day, 
+    M.DemandSpecificDistribution = Param( M.time_season, M.time_of_day, M.location,
     		                              M.commodity_demand )
-    M.Demand = Param( M.time_optimize, M.commodity_demand )
+    M.Demand = Param( M.time_optimize, M.location, M.commodity_demand )
     M.initialize_Demands = BuildAction( rule=CreateDemands )
     M.ResourceBound = Param( M.time_optimize,  M.commodity_physical )
     M.CostFixed_ptv    = Set( dimen=3, initialize=CostFixedIndices )
@@ -159,20 +161,20 @@ def temoa_create_model ( name='The Temoa Energy System Model' ):
     
     # Decision Variables--------------------------------------------------------
     #   Base decision variables
-    M.FlowVar_psditvo = Set( dimen=7, initialize=FlowVariableIndices )
-    M.V_FlowIn  = Var( M.FlowVar_psditvo, domain=NonNegativeReals )
-    M.V_FlowOut = Var( M.FlowVar_psditvo, domain=NonNegativeReals )
+    M.FlowVar_psdlitvo = Set( dimen=8, initialize=FlowVariableIndices )
+    M.V_FlowIn  = Var( M.FlowVar_psdlitvo, domain=NonNegativeReals )
+    M.V_FlowOut = Var( M.FlowVar_psdlitvo, domain=NonNegativeReals )
     
     # Derived decision variables
-    M.ActivityVar_psdtv = Set( dimen=5, initialize=ActivityVariableIndices )
-    M.V_Activity = Var( M.ActivityVar_psdtv, domain=NonNegativeReals )
+    M.ActivityVar_psdltv = Set( dimen=6, initialize=ActivityVariableIndices )
+    M.V_Activity = Var( M.ActivityVar_psdltv, domain=NonNegativeReals )
     
-    M.CapacityVar_tv = Set( dimen=2, initialize=CapacityVariableIndices )    
-    M.V_Capacity = Var( M.CapacityVar_tv,    domain=NonNegativeReals )
+    M.CapacityVar_ltv = Set( dimen=3, initialize=CapacityVariableIndices )    
+    M.V_Capacity = Var( M.CapacityVar_ltv,    domain=NonNegativeReals )
         
-    M.ActivityByPeriodAndProcessVar_ptv = Set(
-      dimen=3, initialize=ActivityByPeriodAndProcessVarIndices )     
-    M.V_ActivityByPeriodAndProcess = Var( M.ActivityByPeriodAndProcessVar_ptv,
+    M.ActivityByPeriodAndProcessVar_pltv = Set(
+      dimen=4, initialize=ActivityByPeriodAndProcessVarIndices )     
+    M.V_ActivityByPeriodAndProcess = Var( M.ActivityByPeriodAndProcessVar_pltv,
                                           domain=NonNegativeReals )
     M.CapacityAvailableVar_pt = Set(
       dimen=2, initialize=CapacityAvailableVariableIndices )    
@@ -207,7 +209,7 @@ def temoa_create_model ( name='The Temoa Energy System Model' ):
 
     # Constraints to calculate derived decision variables
     M.ActivityConstraint = Constraint( 
-      M.ActivityVar_psdtv, 
+      M.ActivityVar_psdltv, 
       rule=Activity_Constraint )
     
     M.ActivityByPeriodAndProcessConstraint = Constraint( 
@@ -227,7 +229,7 @@ def temoa_create_model ( name='The Temoa Energy System Model' ):
       rule=ActivityByTech_Constraint )
 
     M.CapacityConstraint = Constraint( 
-      M.ActivityVar_psdtv, 
+      M.ActivityVar_psdltv, 
       rule=Capacity_Constraint )
     
     M.CapacityAvailableByPeriodAndTechConstraint = Constraint( 
@@ -237,7 +239,7 @@ def temoa_create_model ( name='The Temoa Energy System Model' ):
     M.ExistingCapacityConstraint_tv = Set(
       dimen=2, initialize=lambda M: M.ExistingCapacity.sparse_iterkeys() )
     M.ExistingCapacityConstraint = Constraint( 
-      M.ExistingCapacityConstraint_tv, 
+      M.ExistingCapacityConstraint_ltv, 
       rule=ExistingCapacity_Constraint )
 
     M.EmissionActivityByPeriodAndTechConstraint = Constraint( 
@@ -255,21 +257,21 @@ def temoa_create_model ( name='The Temoa Energy System Model' ):
 	#   Model Constraints
 	#   In driving order, starting with the need to meet end-use demands
 	
-    M.DemandConstraint_psdc = Set( dimen=4, initialize=DemandConstraintIndices )
+    M.DemandConstraint_psdlc = Set( dimen=4, initialize=DemandConstraintIndices )
     M.DemandConstraint           = Constraint( 
       M.DemandConstraint_psdc,  
       rule=Demand_Constraint )
 
-    M.DemandActivityConstraint_psdtv_dem_s0d0 = Set( 
+    M.DemandActivityConstraint_psdltv_dem_s0d0 = Set( 
        dimen=8, initialize=DemandActivityConstraintIndices )
     M.DemandActivityConstraint   = Constraint( 
-      M.DemandActivityConstraint_psdtv_dem_s0d0, 
+      M.DemandActivityConstraint_psdltv_dem_s0d0, 
       rule=DemandActivity_Constraint )
 
-    M.ProcessBalanceConstraint_psditvo = Set(
+    M.ProcessBalanceConstraint_psdlitvo = Set(
       dimen=7, initialize=ProcessBalanceConstraintIndices )
     M.ProcessBalanceConstraint   = Constraint( 
-      M.ProcessBalanceConstraint_psditvo, 
+      M.ProcessBalanceConstraint_psdlitvo, 
       rule=ProcessBalance_Constraint )
 
     M.CommodityBalanceConstraint_psdc = Set(
@@ -284,10 +286,10 @@ def temoa_create_model ( name='The Temoa Energy System Model' ):
       M.ResourceConstraint_pr,  
       rule=ResourceExtraction_Constraint )
 
-    M.BaseloadDiurnalConstraint_psdtv = Set(
+    M.BaseloadDiurnalConstraint_psdltv = Set(
       dimen=5, initialize=BaseloadDiurnalConstraintIndices )
     M.BaseloadDiurnalConstraint = Constraint( 
-      M.BaseloadDiurnalConstraint_psdtv,  
+      M.BaseloadDiurnalConstraint_psdltv,  
       rule=BaseloadDiurnal_Constraint )
 
     M.StorageConstraint_psitvo = Set( 
@@ -335,16 +337,16 @@ def temoa_create_model ( name='The Temoa Energy System Model' ):
       M.MinCapacityConstraint_pt, 
       rule=MinCapacity_Constraint )
 
-    M.TechInputSplitConstraint_psditv = Set(
+    M.TechInputSplitConstraint_psdlitv = Set(
       dimen=6, initialize=TechInputSplitConstraintIndices )
     M.TechInputSplitConstraint  = Constraint( 
-      M.TechInputSplitConstraint_psditv,  
+      M.TechInputSplitConstraint_psdlitv,  
       rule=TechInputSplit_Constraint )
 
-    M.TechOutputSplitConstraint_psdtvo = Set(
+    M.TechOutputSplitConstraint_psdltvo = Set(
       dimen=6, initialize=TechOutputSplitConstraintIndices )
     M.TechOutputSplitConstraint = Constraint( 
-      M.TechOutputSplitConstraint_psdtvo, 
+      M.TechOutputSplitConstraint_psdltvo, 
       rule=TechOutputSplit_Constraint )
 
     return M
