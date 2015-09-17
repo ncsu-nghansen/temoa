@@ -259,7 +259,7 @@ def CreateCapacityFactors ( M ):
 	  for s, d, l, (t, v) in cross_product(
 	    M.time_season,
 	    M.time_of_day,
-	    M.location
+	    M.location,
 	    processes
 	  )
 	)
@@ -539,7 +539,7 @@ g_processLoans = dict()
 g_activeFlow_psdlitvo = None
 g_activeFlow_pltv = None
 g_activeActivity_ptv = None
-g_activeActivity_ltv
+g_activeActivity_ltv = None
 g_activeCapacity_tv = None
 g_activeCapacityAvailable_pt = None
 

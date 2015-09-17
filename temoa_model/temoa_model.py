@@ -93,7 +93,7 @@ def temoa_create_model ( name='The Temoa Energy System Model' ):
     		              M.commodity_carrier )
     M.validate_UsedEfficiencyIndices = BuildAction( rule=CheckEfficiencyIndices )   
     #M.CapacityFactor_sdtv = Set( dimen=4, initialize=CapacityFactorProcessIndices )
-    M.CapacityFactor_sdrtv = Set( dimen=5, initialize=CapacityFactorProcessIndicies )
+    M.CapacityFactor_sdrtv = Set( dimen=5, initialize=CapacityFactorProcessIndices )
     M.CapacityFactorProcess = Param( M.CapacityFactor_sdrtv )
     M.CapacityFactor_sdrt  = Set( dimen=4, initialize=CapacityFactorTechIndices )
     M.CapacityFactorTech    = Param( M.CapacityFactor_sdrt, default=1 )
@@ -172,10 +172,15 @@ def temoa_create_model ( name='The Temoa Energy System Model' ):
     M.CapacityVar_ltv = Set( dimen=3, initialize=CapacityVariableIndices )    
     M.V_Capacity = Var( M.CapacityVar_ltv,    domain=NonNegativeReals )
         
-    M.ActivityByPeriodAndProcessVar_pltv = Set(
-      dimen=4, initialize=ActivityByPeriodAndProcessVarIndices )     
-    M.V_ActivityByPeriodAndProcess = Var( M.ActivityByPeriodAndProcessVar_pltv,
+    #M.ActivityByPeriodAndProcessVar_pltv = Set(
+    #  dimen=4, initialize=ActivityByPeriodAndProcessVarIndices )     
+    #M.V_ActivityByPeriodAndProcess = Var( M.ActivityByPeriodAndProcessVar_pltv,
+    #                                      domain=NonNegativeReals )
+    M.ActivityByPeriodAndProcessVar_ptv = Set(
+      dimen=3, initialize=ActivityByPeriodAndProcessVarIndices )     
+    M.V_ActivityByPeriodAndProcess = Var( M.ActivityByPeriodAndProcessVar_ptv,
                                           domain=NonNegativeReals )
+
     M.CapacityAvailableVar_pt = Set(
       dimen=2, initialize=CapacityAvailableVariableIndices )    
     M.V_CapacityAvailableByPeriodAndTech = Var( M.CapacityAvailableVar_pt,
@@ -239,7 +244,7 @@ def temoa_create_model ( name='The Temoa Energy System Model' ):
     M.ExistingCapacityConstraint_tv = Set(
       dimen=2, initialize=lambda M: M.ExistingCapacity.sparse_iterkeys() )
     M.ExistingCapacityConstraint = Constraint( 
-      M.ExistingCapacityConstraint_ltv, 
+      M.ExistingCapacityConstraint_tv, 
       rule=ExistingCapacity_Constraint )
 
     M.EmissionActivityByPeriodAndTechConstraint = Constraint( 
@@ -259,7 +264,7 @@ def temoa_create_model ( name='The Temoa Energy System Model' ):
 	
     M.DemandConstraint_psdlc = Set( dimen=4, initialize=DemandConstraintIndices )
     M.DemandConstraint           = Constraint( 
-      M.DemandConstraint_psdc,  
+      M.DemandConstraint_psdlc,  
       rule=Demand_Constraint )
 
     M.DemandActivityConstraint_psdltv_dem_s0d0 = Set( 

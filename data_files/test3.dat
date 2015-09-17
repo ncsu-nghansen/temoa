@@ -1,0 +1,262 @@
+data;
+
+# This dot dat file tests most Temoa functionality.  As of July 2011, Temoa
+# will solve this dot dat file on moderate hardware in < 5 seconds, consume
+# < 140 MiB of virtual memory, and < 60 MiB of physical RAM.
+
+# Note that this test.dat file is in no way, shape, or form representative of
+# a "real" or "typical" energy system, and is /solely/ meant to test basic
+# Temoa functionality.  All numbers in this file are suspect.
+
+set  time_exist  :=  1990  2000 ;
+set  time_future :=  2010  2015  2020  2025  2030;
+
+set  time_season  :=  summer winter ;
+set  time_of_day  :=  day  night ;
+set location := a, b;
+
+set  tech_resource  :=
+ imp_coal
+ imp_natgas
+ imp_sun 
+	;
+
+set  tech_production  :=
+ t_coal
+ t_natgas
+ t_farsolar
+ t_grid
+ t_smartgrid	
+ c_res
+ c_com
+ c_ind
+	;
+
+
+set  tech_baseload  :=
+ t_coal
+	;
+
+set  commodity_physical  :=
+ ethos
+ coal
+ natural_gas
+ busbar_electricity
+ customer_electricity
+ far_sun
+	;
+
+set  commodity_emissions  :=
+ co2
+ nox
+	;
+
+set  commodity_demand  :=
+ residential
+ commercial
+ industrial
+	;
+
+
+param  GlobalDiscountRate  :=  0.03 ;
+
+
+param  CapacityToActivity  :=
+ t_coal   31.536    # PJ/yr -> GW
+	;
+
+
+
+param  EmissionLimit  :=
+# period   # emission      # limit
+ 2010       co2             500
+ 2015       co2             450
+ 2020       co2             375
+ 2025       co2             275
+	;
+
+#param  ResourceBound  :=
+# period      # resource   # bound
+# 2010          coal         2000000
+# 2015          coal         3000000
+# 2020          coal         2000000
+# 2025          coal         1000000
+#	;
+
+
+param  SegFrac  :=
+ summer  day    0.4
+ summer  night  0.1
+ winter  day    0.3
+ winter  night  0.2
+	;
+
+
+param DemandDefaultDistribution  :=
+ summer  day   0.3
+ summer  night 0.2
+	;
+
+param DemandSpecificDistribution :=
+ summer day 	a residential 0.125
+ summer night 	a residential 0.125
+ winter day 	a residential 0.125
+ winter night 	a residential 0.125
+
+ summer day 	b residential 0.125
+ summer night 	b residential 0.125
+ winter day 	b residential 0.125
+ winter night 	b residential 0.125
+
+  summer day 	a commercial 0.125
+ summer night 	a commercial 0.125
+ winter day 	a commercial 0.125
+ winter night 	a commercial 0.125
+
+ summer day 	b commercial 0.125
+ summer night 	b commercial 0.125
+ winter day 	b commercial 0.125
+ winter night 	b commercial 0.125
+
+  summer day 	a industrial 0.125
+ summer night 	a industrial 0.125
+ winter day 	a industrial 0.125
+ winter night 	a industrial 0.125
+
+ summer day 	b industrial 0.125
+ summer night 	b industrial 0.125
+ winter day 	b industrial 0.125
+ winter night 	b industrial 0.125
+	;
+
+
+param  Demand  :=
+
+ 2010  a residential            20
+ 2015  a residential            20
+ 2020  a residential            20
+ 2025  a residential            20
+
+ 2010  a commercial	20
+ 2015  a commercial	22
+ 2020  a commercial	24
+ 2025  a commercial	26
+
+ 2010  a industrial	20
+ 2015  a industrial	22
+ 2020  a industrial	24
+ 2025  a industrial	26
+
+ 2010  b residential            40
+ 2015  b residential            40
+ 2020  b residential            40
+ 2025  b residential            40
+
+ 2010  b commercial	20
+ 2015  b commercial	22
+ 2020  b commercial	24
+ 2025  b commercial	26
+
+ 2010  b industrial	20
+ 2015  b industrial	22
+ 2020  b industrial	24
+ 2025  b industrial	26
+	;
+
+
+
+
+param  LifetimeTech  :=
+ imp_coal   30
+
+ imp_sun    30
+ t_coal     30
+ t_natgas   27
+ 
+ t_farsolar 30
+	;
+
+param  CostInvest  :=
+# tech      # vintage       # cost
+ t_coal      2010            500
+ t_coal      2015            500
+ t_coal      2020            500
+ t_coal      2025            500
+	;
+
+
+param  CostFixed  :=
+# period     # tech            # vintage   # cost
+
+  
+
+
+ 
+
+
+ 2010         t_farsolar         2010        6
+
+ 2010	      t_grid		2010	    5
+ 2010	      t_smartgrid	2010	    8
+
+
+	;
+
+param  Efficiency  :=
+# input carrier  # tech            # vintage  # output carrier     # eff. value
+ ethos            imp_coal          2000       coal                   1
+ ethos            imp_natgas        2000       natural_gas            1
+ ethos 		  imp_sun	    2000       far_sun                1
+
+ customer_electricity c_res	2000	residential	1
+ customer_electricity c_res	2010	residential	1
+ customer_electricity c_res	2015	residential	1
+ customer_electricity c_res	2020	residential	1
+ customer_electricity c_res	2025	residential	1
+
+ customer_electricity c_com	2000	commercial	1
+ customer_electricity c_com	2010	commercial	1
+ customer_electricity c_com	2015	commercial	1
+ customer_electricity c_com	2020	commercial	1
+ customer_electricity c_com	2025	commercial	1
+
+ customer_electricity c_ind	2000	industrial	1
+ customer_electricity c_ind	2010	industrial	1
+ customer_electricity c_ind	2015	industrial	1
+ customer_electricity c_ind	2020	industrial	1
+ customer_electricity c_ind	2025	industrial	1 
+
+ far_sun          t_farsolar         2000       busbar_electricity            0.30
+ far_sun	  t_farsolar          2010       busbar_electricity            0.30
+
+ far_sun          t_farsolar          2020       busbar_electricity            0.32
+ 
+
+ coal             t_coal            1990       busbar_electricity            0.50
+ coal             t_coal            2000       busbar_electricity            0.435
+ coal             t_coal            2010       busbar_electricity         0.42
+ coal             t_coal            2015       busbar_electricity            0.44
+ coal             t_coal            2020       busbar_electricity            0.49
+ coal             t_coal            2025       busbar_electricity            0.53
+
+ natural_gas      t_natgas          2000       busbar_electricity            0.48
+ natural_gas      t_natgas          2010       busbar_electricity            0.50
+ natural_gas      t_natgas          2015       busbar_electricity            0.52
+ natural_gas      t_natgas          2020       busbar_electricity            0.53
+ natural_gas      t_natgas          2025       busbar_electricity            0.55
+
+ busbar_electricity	t_grid		2010		customer_electricity   0.85
+ busbar_electricity	t_grid		2015		customer_electricity   0.85
+ busbar_electricity	t_grid		2020		customer_electricity   0.85
+ busbar_electricity	t_grid		2025		customer_electricity   0.85
+
+ busbar_electricity	t_smartgrid	2010		customer_electricity   0.95
+ busbar_electricity	t_smartgrid	2015		customer_electricity   0.95
+ busbar_electricity	t_smartgrid	2020		customer_electricity   0.95
+ busbar_electricity	t_smartgrid	2025		customer_electricity   0.95 
+ 	
+
+	;
+
+
+
